@@ -53,10 +53,10 @@
 
 #define APP_ADV_TIMEOUT_IN_SECONDS_FAST 0                                     /**< The advertising timeout in units of seconds. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(100, UNIT_1_25_MS)        /**< Minimum acceptable connection interval (0.4 seconds). */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)        /**< Minimum acceptable connection interval (0.4 seconds). */
 #define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)        /**< Maximum acceptable connection interval (5 seconds). */
 #define SLAVE_LATENCY                   4                                      /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(32000, UNIT_10_MS)         /**< Connection supervisory timeout (4 seconds). */
+#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(6000, UNIT_10_MS)         /**< Connection supervisory timeout (4 seconds). */
 
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(1000)                   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(10000)                  /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
@@ -84,6 +84,7 @@ BLE_ADVERTISING_DEF(m_advertising);
 
 static uint8_t custom_value          = 0;
 static int timeCounter = 0;
+static int maxCounter = 0;
 #define TIMER_INTERVAL APP_TIMER_TICKS(1000)   
 
 APP_TIMER_DEF(m_app_timer_id);
@@ -97,10 +98,10 @@ APP_TIMER_DEF(m_app_timer_id);
 #endif
 
 #ifdef BSP_LED_0
-    #define PIN_OUT_1 31
-    #define PIN_OUT_2 BSP_LED_1
-    #define PIN_OUT_3 BSP_LED_2
-    #define PIN_OUT_4 BSP_LED_3
+    #define PIN_OUT_1 BSP_LED_1
+    #define PIN_OUT_2 BSP_LED_2
+    #define PIN_OUT_3 BSP_LED_3
+    #define PIN_OUT_4 BSP_LED_4
 #endif
 
 #ifndef PIN_OUT_1
@@ -125,7 +126,6 @@ static void application_timers_stop(void);
 
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {    
-   //nrf_drv_gpiote_out_toggle(PIN_OUT);
    NRF_LOG_DEBUG("CLICKED BSP_BUTTON_0");   
 }
 
@@ -163,16 +163,15 @@ static void gpio_init(void)
 }
 
 
-
+/**  MY CUSTOM FUNCTIONS **/
 void update_data()
 {
     //Send back some data
     for(int i=1;i<CHARACTERISTIC_SIZE;i++){
         char2_data[i] = 0;
     }
-       
-    char2_data[0] = 1;
-    char2_data[1] = timeCounter;
+    char2_data[0] = maxCounter;
+    //char2_data[1] = timeCounter;
     ret_code_t err_code = mycustom_service_update_data(m_conn_handle,char2_data);
     APP_ERROR_CHECK(err_code);
    
@@ -180,10 +179,23 @@ void update_data()
 
 void timer_signal_handler(void* p_context)
 { 
-  update_data();
+    update_data();
 
-  timeCounter++;
-//SEGGER_RTT_printf(0, "TIMER %d\n", timeCounter);    
+    timeCounter++;  
+    SEGGER_RTT_printf(0, "TIMER %d\n", timeCounter); 
+
+    if (timeCounter%2 == 0) {
+        gpio_pin_high(PIN_OUT_1);
+    } else {
+        gpio_pin_low(PIN_OUT_1);
+    }
+
+    if (timeCounter >= maxCounter) {
+        application_timers_stop();
+        gpio_pin_low(PIN_OUT_1);
+    }
+
+    
 }
 
   
@@ -211,18 +223,15 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
             {   
                 uint8_t signal = p_ble_evt->evt.gatts_evt.params.write.data[i];
                 NRF_LOG_DEBUG("Data Receipt %d: 0x%x", i, signal);
-                char2_data[0] = signal; 
+                maxCounter = signal;
+                timeCounter = 0;
+                application_timers_start(); 
             } 
         default:
             // No implementation needed.
             break;
        }     
 }
-
-
-
-
-//fim spread functions
 
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -406,13 +415,6 @@ static void application_timers_start(void)
     uint32_t err_code;
     err_code = app_timer_start(m_app_timer_id, TIMER_INTERVAL, NULL);
     APP_ERROR_CHECK(err_code); 
-    // if (!updateHandlerInit) {
-    //     updateHandlerInit = 1;
-    //     err_code = app_timer_start(m_app_timer_id2, TIMER_INTERVAL, NULL);
-    //     APP_ERROR_CHECK(err_code); 
-    // }
-   
-
     timeCounter = 0;
     SEGGER_RTT_printf(0, "application_timers_start ... (Err_code: %d).\r\n",err_code); 
 
@@ -423,9 +425,6 @@ static void application_timers_stop(void)
     uint32_t err_code;
     err_code = app_timer_stop(m_app_timer_id);
     APP_ERROR_CHECK(err_code); 
-
-    // err_code = app_timer_stop(m_app_timer_id2);
-    // APP_ERROR_CHECK(err_code); 
 
     SEGGER_RTT_printf(0, "application_timers_stop ... (Err_code: %d).\r\n",err_code); 
     timeCounter = 0;
@@ -653,14 +652,6 @@ void softdevice_assert_callback(uint32_t id, uint32_t pc, uint32_t info)
 static void ble_stack_init(void)
 {
     ret_code_t err_code;
-
-    // nrf_clock_lf_cfg_t clock_lf_cfg = { 
-    //  .source        = NRF_CLOCK_LF_SRC_RC,            
-    //  .rc_ctiv       = 16,                             
-    //  .rc_temp_ctiv  = 2,                              
-    //  .accuracy = NRF_CLOCK_LF_ACCURACY_20_PPM
-    // };
-
 
     // err_code = sd_softdevice_enable(&clock_lf_cfg, softdevice_assert_callback);
     // SEGGER_RTT_printf(0, "-->sd_softdevice_enable %d\n", err_code);
