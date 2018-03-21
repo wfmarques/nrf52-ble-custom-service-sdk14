@@ -13,14 +13,13 @@ ifeq ($(UNAME),Linux)
 	CC=gcc
 endif
 
-PROJECT_NAME := infinity_ble_s132_pca10040
+PROJECT_NAME := custom_ble_s132_pca10040
 
 export PATH := ..\Min:$(PATH)
 #Add to the PATH variable C:\MingW\bin;C:\MingW\msys\1.0\bin 
-SDK_ROOT := /Users/wesley/Developer/projeto_infinity/nRF5_SDK_14.0.0_3bcc1f7
-GNU_INSTALL_ROOT := /Users/wesley/Developer/arm_linux_toolchain/arm-none-eabi-4.9
-nrfjprog := /Users/wesley/Developer/arm_linux_toolchain/nordic/nRF5x-Command-Line-Tools_9_0_0_OSX/nrfjprog/nrfjprog
-
+#SDK_ROOT := /YOUR_PATH/nRF5_SDK_14.0.0_3bcc1f7
+#GNU_INSTALL_ROOT := /YOUR_PATH/arm-none-eabi-4.9
+#nrfjprog := /YOUR_PATH/nRF5x-Command-Line-Tools_9_0_0_OSX/nrfjprog/nrfjprog
 
 
 
